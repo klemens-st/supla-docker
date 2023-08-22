@@ -1,5 +1,10 @@
 # SUPLA-Docker
 
+This branch has been customised for use with Apache (and possibly other) reverse proxy installed on the host (not in another container). Remember to set SSL and other important stuff on the proxy server.
+Keep in mind that while HTTP(S) traffic will be handled by the proxy, supla still exposes port 2016 which cannot be proxied, so if your host is behind NAT you need to forward port 443 (or any other port your proxy server listens on) and port 2016 (which is exposed by the supla-server container).
+There is no need to forward non SSL port 2015 or the HTTP port of supla-cloud, if there is no NAT you should actually firewall these ports.
+
+
 [![Docker Pulls](https://img.shields.io/docker/pulls/supla/supla-cloud.svg)](https://hub.docker.com/r/supla/supla-cloud/)
  
 | SUPLA-Cloud        | SUPLA-Core           |
