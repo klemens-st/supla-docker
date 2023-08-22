@@ -39,7 +39,7 @@ if [ "$1" = "start" ]; then
 
 elif [ "$1" = "stop" ]; then
   echo -e "${GREEN}Stopping SUPLA containers${NC}"
-  docker compose stop && echo -e "${GREEN}SUPLA containers has been stopped.${NC}"
+  docker compose stop && echo -e "${GREEN}SUPLA containers have been stopped.${NC}"
 
 elif [ "$1" = "restart" ]; then
   "./$(basename "$0")" stop
