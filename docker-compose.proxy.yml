@@ -1,10 +1,12 @@
-version: '3.4'
-
 services:
   supla-cloud:
     ports:
       - "${PORT_HTTP}:80"
     environment:
-      - VIRTUAL_HOST=${CLOUD_DOMAIN}
       - SUPLA_PROTOCOL=http
       - SUPLA_URL=https://${CLOUD_DOMAIN}
+
+networks:
+  proxy:
+    external: true
+    name: ${DOCKER_NETWORK_NAME:-webproxy}

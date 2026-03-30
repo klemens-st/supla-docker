@@ -1,18 +1,16 @@
-version: '3.4'
-
 services:
   supla-cloud:
     container_name: ${COMPOSE_PROJECT_NAME}-cloud
     restart: unless-stopped
-    image: supla/supla-cloud
+    image: supla/supla-cloud:${SUPLA_CLOUD_VERSION:-latest}
     env_file:
       - .env.default
       - .env
     volumes:
-      - ./ssl/cloud:/etc/apache2/ssl:z
+      - ./ssl/cloud:/etc/apache2/ssl
       - ${VOLUME_DATA}/cloud-local:/var/www/cloud/var/local
       - ${VOLUME_DATA}/cloud-logs:/var/www/cloud/var/logs
-      - supla-server-socket:/supla-server:z
+      - supla-server-socket:/supla-server
     logging:
       driver: "json-file"
       options:
@@ -23,7 +21,7 @@ services:
   supla-db:
     container_name: ${COMPOSE_PROJECT_NAME}-db
     restart: unless-stopped
-    image: mysql:5.7.20
+    image: ${DB_IMAGE}
     env_file:
       - .env.default
       - .env
@@ -33,7 +31,7 @@ services:
       MYSQL_USER: supla
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - ${VOLUME_DATA}/mysql:/var/lib/mysql:z
+      - ${VOLUME_DATA}/mysql:/var/lib/mysql
     logging:
       driver: "json-file"
       options:
@@ -42,13 +40,13 @@ services:
   supla-server:
     container_name: ${COMPOSE_PROJECT_NAME}-server
     restart: unless-stopped
-    image: supla/supla-server
+    image: supla/supla-server:${SUPLA_SERVER_VERSION:-latest}
     env_file:
       - .env.default
       - .env
     volumes:
-      - ./ssl/server:/etc/supla-server/ssl:z
-      - supla-server-socket:/var/run/supla:z
+      - ./ssl/server:/etc/supla-server/ssl
+      - supla-server-socket:/var/run/supla
     ports:
       - "2016:2016"
       - "2015:2015"
