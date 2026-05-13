@@ -1,6 +1,7 @@
 services:
   supla-cloud:
     container_name: ${COMPOSE_PROJECT_NAME}-cloud
+    init: true
     restart: unless-stopped
     image: supla/supla-cloud:${SUPLA_CLOUD_VERSION:-latest}
     env_file:
