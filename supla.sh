@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 cd "$(dirname "$0")"
 
 RED='\033[0;31m'
@@ -8,90 +10,131 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 if docker compose version >/dev/null 2>&1; then
-  DOCKER_COMPOSE="docker compose"
+  DOCKER_COMPOSE=(docker compose)
 elif command -v docker-compose >/dev/null 2>&1; then
-  DOCKER_COMPOSE="docker-compose"
+  DOCKER_COMPOSE=(docker-compose)
 else
-  echo -e "${RED}Neither docker-compose nor docker compose found. Please install Docker with docker compose plugin.${NC}"
+  echo -e "${RED}Neither docker compose nor docker-compose found. Please install Docker Compose.${NC}"
   exit 1
 fi
 
-if [ ! -f .env ]; then
-  cp .env.default .env
-  echo -e "${YELLOW}Sample configuration file is being generated for you.${NC}"
-  DB_PASSWORD="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)"
-  if [ -z "$DB_PASSWORD" ]; then
-    echo -e "${YELLOW}We could not generate passwords. Make sure to change the default DB_PASSWORD and SECRET.${NC}"
-  else
-    SECRET="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)"
+docker_compose() {
+  "${DOCKER_COMPOSE[@]}" "$@"
+}
+
+generate_secret() {
+  tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c "$1"
+}
+
+ensure_env_file() {
+  if [ ! -f .env ]; then
+    cp .env.default .env
+
+    DB_PASSWORD="$(generate_secret 32)"
+    APP_SECRET="$(generate_secret 64)"
+
     sed -i "s+CHANGE_PASSWORD_BEFORE_FIRST_LAUNCH+$DB_PASSWORD+g" .env
-    sed -i "s+CHANGE_SECRET_BEFORE_FIRST_LAUNCH+$SECRET+g" .env
+    sed -i "s+CHANGE_SECRET_BEFORE_FIRST_LAUNCH+$APP_SECRET+g" .env
+
+    echo -e "${YELLOW}Sample configuration file has been generated for you.${NC}"
+    echo -e "${YELLOW}Please check if the .env file matches your needs and run this command again.${NC}"
+    exit 0
   fi
-  echo -e "${YELLOW}Please check if the .env file matches your needs and run this command again.${NC}"
-  exit
-fi
+}
 
-source .env >/dev/null 2>&1
+load_env_file() {
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+}
 
-if [ -z "$DB_IMAGE" ]; then
-  export DB_IMAGE="mysql:5.7.20"
-  echo "DB_IMAGE=$DB_IMAGE" >> .env
-fi
+validate_required_env() {
+  if [ -z "${DATABASE_IMAGE:-}" ]; then
+    echo -e "${RED}DATABASE_IMAGE is not set. Please define it in .env.${NC}"
+    exit 1
+  fi
+}
 
-if [ "$DB_IMAGE" = "mysql:5.7.20" ]; then
-  echo -e "${YELLOW}[WARN] Using the outdated MySQL image 5.7.20.${NC}"
-  echo -e "${YELLOW}[WARN] Please consider upgrading your SUPLA stack.${NC}"
-  echo -e "${YELLOW}[WARN] The support for current configuration will be dropped at the end of August 2025.${NC}"
-  echo -e "${YELLOW}[WARN] See https://github.com/SUPLA/supla-docker/wiki/Docker-stack-upgrade-2025 for more information.${NC}"
-fi
+prepare_env() {
+  if [ -n "${MAILER_HOST:-}" ]; then
+    echo -e "${YELLOW}[WARN] You are using deprecated e-mail configuration.${NC}"
+    echo -e "${YELLOW}[WARN] Please use MAILER_DSN environment variable to configure it.${NC}"
+    echo -e "${YELLOW}[WARN] See .env.default for examples.${NC}"
+  fi
+}
 
-if [ "${MAILER_HOST}" != "" ]; then
-  echo -e "${YELLOW}[WARN] You are using deprecated e-mail configuration.${NC}"
-  echo -e "${YELLOW}[WARN] Please use MAILER_DSN environment variable to configure it.${NC}"
-  echo -e "${YELLOW}[WARN] See .env.default for examples.${NC}"
-fi
+start() {
+  echo -e "${GREEN}Starting SUPLA containers${NC}"
+  docker_compose up --build -d
+  echo -e "${GREEN}SUPLA containers have been started.${NC}"
+}
 
-# remove \r at the end of the env, if exists
-CONTAINER_NAME="$(echo -e "${COMPOSE_PROJECT_NAME}" | sed -e 's/\r$//')"
-
-mkdir -p "$VOLUME_DATA/backups"
-
-if [ "$1" = "start" ]; then
-  echo -e "${GREEN}Starting SUPLA containers${NC}" && \
-  $DOCKER_COMPOSE up --build -d && \
-  echo -e "${GREEN}SUPLA containers has been started.${NC}"
-
-elif [ "$1" = "stop" ]; then
+stop() {
   echo -e "${GREEN}Stopping SUPLA containers${NC}"
-  $DOCKER_COMPOSE stop && echo -e "${GREEN}SUPLA containers has been stopped.${NC}"
+  docker_compose stop
+  echo -e "${GREEN}SUPLA containers have been stopped.${NC}"
+}
 
-elif [ "$1" = "restart" ]; then
-  "./$(basename "$0")" stop
+restart() {
+  stop
   sleep 1
-  "./$(basename "$0")" start
+  start
+}
 
-elif [ "$1" = "backup" ]; then
+upgrade() {
+  echo -e "${GREEN}Updating SUPLA containers${NC}"
+  docker_compose build --pull
+  docker_compose up -d --remove-orphans
+  echo -e "${GREEN}SUPLA containers have been updated.${NC}"
+}
+
+backup() {
   echo -e "${GREEN}Making database backup${NC}"
-  BACKUP_FILE="$VOLUME_DATA/backups/supla$(date +"%m%d%Y%H%M%S").sql"
-  if [[ "$DB_IMAGE" == *"mariadb"* ]]; then \
-    docker exec "$CONTAINER_NAME-db" mariadb-dump --user=supla --password=$DB_PASSWORD supla > "$BACKUP_FILE"; \
-  else \
-    docker exec "$CONTAINER_NAME-db" mysqldump --routines -u supla --password=$DB_PASSWORD supla > "$BACKUP_FILE"; \
-  fi && \
-  gzip "$BACKUP_FILE" && \
-  echo -e "${GREEN}Database backup saved to ${BACKUP_FILE}.gz${NC}" || \
-  (echo -e "${RED}Could not create the database backup. Is the application started?${NC}" && false)
 
-elif [ "$1" = "upgrade" ]; then
-  "./$(basename "$0")" backup && \
-  "./$(basename "$0")" stop && \
-  $DOCKER_COMPOSE pull && \
-  "./$(basename "$0")" start
+  BACKUP_DIR="${VOLUME_DATA:-./var}/backups"
+  mkdir -p "$BACKUP_DIR"
 
-elif [ "$1" = "create-confirmed-user" ]; then
-  docker exec -it -u www-data "$CONTAINER_NAME-cloud" php bin/console supla:create-confirmed-user
+  BACKUP_FILE="$BACKUP_DIR/supla$(date +"%m%d%Y%H%M%S").sql"
 
-else
-  echo -e "${RED}Usage: $0 start|stop|restart|upgrade|backup|create-confirmed-user${NC}"
+  if [[ "${DATABASE_IMAGE}" == *"mariadb"* ]]; then
+    docker_compose exec -T supla-db mariadb-dump \
+      --user=supla \
+      --password="${DATABASE_PASSWORD}" \
+      supla > "$BACKUP_FILE"
+  else
+    docker_compose exec -T supla-db mysqldump \
+      --routines \
+      --user=supla \
+      --password="${DATABASE_PASSWORD}" \
+      supla > "$BACKUP_FILE"
+  fi
 
-fi
+  gzip "$BACKUP_FILE"
+
+  echo -e "${GREEN}Database backup saved to ${BACKUP_FILE}.gz${NC}"
+}
+
+console() {
+  shift
+  docker_compose exec -u www-data supla-cloud php bin/console "$@"
+}
+
+usage() {
+  echo -e "${YELLOW}Usage: $0 start|stop|restart|backup|upgrade|console${NC}"
+}
+
+ensure_env_file
+load_env_file
+validate_required_env
+prepare_env
+
+case "${1:-}" in
+  start) start ;;
+  stop) stop ;;
+  restart) restart ;;
+  upgrade) upgrade ;;
+  backup) backup ;;
+  console) console "$@" ;;
+  *) usage; exit 1 ;;
+esac
