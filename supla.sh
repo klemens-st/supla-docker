@@ -54,6 +54,10 @@ validate_required_env() {
     echo -e "${RED}DATABASE_IMAGE is not set. Please define it in .env.${NC}"
     exit 1
   fi
+  if [ -z "${DATABASE_PASSWORD:-}" ]; then
+    echo -e "${RED}DATABASE_PASSWORD is not set. Please define it in .env.${NC}"
+    exit 1
+  fi
 }
 
 prepare_env() {
@@ -95,7 +99,7 @@ backup() {
   BACKUP_DIR="${VOLUME_DATA:-./var}/backups"
   mkdir -p "$BACKUP_DIR"
 
-  BACKUP_FILE="$BACKUP_DIR/supla$(date +"%m%d%Y%H%M%S").sql"
+  BACKUP_FILE="$BACKUP_DIR/supla$(date +"%Y%m%d%H%M%S").sql"
 
   if [[ "${DATABASE_IMAGE}" == *"mariadb"* ]]; then
     docker_compose exec -T supla-db mariadb-dump \
@@ -105,6 +109,7 @@ backup() {
   else
     docker_compose exec -T supla-db mysqldump \
       --routines \
+      --no-tablespaces \
       --user=supla \
       --password="${DATABASE_PASSWORD}" \
       supla > "$BACKUP_FILE"
