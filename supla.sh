@@ -88,7 +88,7 @@ restart() {
 
 upgrade() {
   echo -e "${GREEN}Updating SUPLA containers${NC}"
-  docker_compose build --pull
+  docker_compose pull
   docker_compose up -d --remove-orphans
   echo -e "${GREEN}SUPLA containers have been updated.${NC}"
 }
