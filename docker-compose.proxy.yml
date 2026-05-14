@@ -4,7 +4,7 @@ services:
       - "${PORT_HTTP}:80"
     environment:
       - SUPLA_PROTOCOL=http
-      - SUPLA_URL=https://${CLOUD_DOMAIN}
+      - SUPLA_URL=https://${SUPLA_HOST_ADDRESS}
 
 networks:
   proxy:

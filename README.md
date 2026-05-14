@@ -38,10 +38,15 @@ Your home connected. With Docker. www.supla.org
 Create a new user account from the command line.
 
 ```
-./supla-docker/supla.sh create-confirmed-user
+./supla-docker/supla.sh console supla:user:create
 ```
 
 ## Upgrading to the newest version
+
+See if there are any manual steps required in the [release notes](https://github.com/SUPLA/supla-docker/releases).
+
+Then, update with the commands:
+
 ```
 cd supla-docker
 git pull
@@ -53,7 +58,7 @@ git pull
 You should run the SUPLA containers in proxy mode if
 
  * already have another dockerized application running on ports 80 or 443 or
- * do not own a valid SSL certificate for your domain but still want your cloud instance to be accepted by the browsers.
+ * do not own a valid SSL certificate for your domain but still want your SUPLA Cloud instance have valid SSL connection.
  
 Here's how.
 
