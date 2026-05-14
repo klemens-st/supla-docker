@@ -87,6 +87,7 @@ restart() {
 }
 
 upgrade() {
+  backup
   echo -e "${GREEN}Updating SUPLA containers${NC}"
   docker_compose pull
   docker_compose up -d --remove-orphans
